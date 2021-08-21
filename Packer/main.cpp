@@ -77,7 +77,7 @@ int main() {
 	newSec.Misc.VirtualSize = Align(pNt->OptionalHeader.SectionAlignment, NewSectionSize);
 	newSec.PointerToRawData = pLastSec->PointerToRawData + pLastSec->SizeOfRawData;
 	newSec.SizeOfRawData = NewSectionSize;
-	RtlCopyMemory(pNewSec, &newSec, sizeof(newSec));
+	RtlCopyMemory(pNewSec, &newSec, sizeof(IMAGE_SECTION_HEADER));
 
 
 	pNt->FileHeader.NumberOfSections++;
@@ -85,7 +85,7 @@ int main() {
 	pNt->OptionalHeader.SizeOfHeaders += sizeof(IMAGE_SECTION_HEADER);
 
 	RtlCopyMemory((LPVOID)((DWORD)lpBuffer + dwFileSize), (LPVOID)((DWORD)lpStubBuffer + RVAToFOA((DWORD)GetSectionDataRVA(".text", pNtStub), lpStubBuffer)), NewSectionSize);
-
+	
 	pNt->OptionalHeader.AddressOfEntryPoint = GetSectionData((LPCSTR)pSecName, pNt)->VirtualAddress + (pNtStub->OptionalHeader.AddressOfEntryPoint - GetSectionData(".text", pNtStub)->VirtualAddress);
 
 	SetFilePointer(hFile, NULL, NULL, FILE_BEGIN);
@@ -112,7 +112,7 @@ DWORD GetSectionSize(LPCSTR lpSectionName, PIMAGE_NT_HEADERS pNt){
 	PIMAGE_SECTION_HEADER pFirstSection = IMAGE_FIRST_SECTION(pNt);
 	for (int i = 0; i < pNt->FileHeader.NumberOfSections; i++){
 		if (strcmp((LPCSTR)pFirstSection[i].Name, lpSectionName) == 0) {
-			return pFirstSection[i].SizeOfRawData;
+			return pFirstSection[i].Misc.VirtualSize;
 		}
 	}
 	return 0;
@@ -132,7 +132,7 @@ LPVOID GetSectionDataRVA(LPCSTR lpSectionName, PIMAGE_NT_HEADERS pNt) {
 DWORD RVAToFOA(DWORD targetRVA, LPVOID lpBuffer) {
 	PIMAGE_DOS_HEADER pDos = (PIMAGE_DOS_HEADER)lpBuffer;
 	PIMAGE_NT_HEADERS pNt = (PIMAGE_NT_HEADERS)((DWORD)lpBuffer + pDos->e_lfanew);
-	if (targetRVA <= pNt->OptionalHeader.SectionAlignment) {
+	if (targetRVA < pNt->OptionalHeader.SectionAlignment) {
 		return targetRVA;
 	}
 	PIMAGE_SECTION_HEADER pFirstSec = IMAGE_FIRST_SECTION(pNt);
