@@ -5,7 +5,8 @@ using namespace std;
 DWORD GetSectionSize(LPCSTR lpSectionName,PIMAGE_NT_HEADERS pNt);
 LPVOID GetSectionDataRVA(LPCSTR lpSectionName, PIMAGE_NT_HEADERS pNt);
 PIMAGE_SECTION_HEADER GetSectionData(LPCSTR lpSectionName, PIMAGE_NT_HEADERS pNt);
-DWORD Align(DWORD _SectionAlignment, DWORD Value);
+DWORD AlignSection(PIMAGE_NT_HEADERS pNt, DWORD Value);
+DWORD AlignFile(PIMAGE_NT_HEADERS pNt, DWORD Value);
 DWORD RVAToFOA(DWORD targetRVA,LPVOID lpBuffer);
 
 int main() {
@@ -35,6 +36,7 @@ int main() {
 	PIMAGE_NT_HEADERS pNtStub = (PIMAGE_NT_HEADERS)((DWORD)lpStubBuffer + pDosStub->e_lfanew);
 
 	DWORD NewSectionSize = GetSectionSize(".text", pNtStub);
+
 	LPVOID lpBuffer = new BYTE[dwFileSize + NewSectionSize];
 	
 	if (ReadFile(hFile, lpBuffer, dwFileSize, &dwNumOfRead, NULL) == FALSE) {
@@ -80,15 +82,15 @@ int main() {
 	CONST BYTE pSecName[8] = ".Ck";//新节名
 	RtlCopyMemory(&newSec.Name, pSecName, sizeof(pSecName));
 	newSec.Characteristics = 0x60000020;//新节属性
+	
 	newSec.VirtualAddress = pLastSec->VirtualAddress + pLastSec->Misc.VirtualSize;
-	newSec.Misc.VirtualSize = Align(pNt->OptionalHeader.SectionAlignment, NewSectionSize);
+	newSec.Misc.VirtualSize = AlignSection(pNt, NewSectionSize);
 	newSec.PointerToRawData = pLastSec->PointerToRawData + pLastSec->SizeOfRawData;
 	newSec.SizeOfRawData = NewSectionSize;
 	RtlCopyMemory(pNewSec, &newSec, sizeof(IMAGE_SECTION_HEADER));
 
-
 	pNt->FileHeader.NumberOfSections++;
-	pNt->OptionalHeader.SizeOfImage += NewSectionSize;
+	pNt->OptionalHeader.SizeOfImage += newSec.SizeOfRawData;
 	pNt->OptionalHeader.SizeOfHeaders += sizeof(IMAGE_SECTION_HEADER);
 
 	RtlCopyMemory((LPVOID)((DWORD)lpBuffer + dwFileSize), (LPVOID)((DWORD)lpStubBuffer + RVAToFOA((DWORD)GetSectionDataRVA(".text", pNtStub), lpStubBuffer)), NewSectionSize);
@@ -110,10 +112,19 @@ int main() {
 	return 0;
 }
 
-DWORD Align(DWORD _SectionAlignment, DWORD Value) {
-	return ((int)(Value / _SectionAlignment) + 1) * _SectionAlignment;
+DWORD AlignSection(PIMAGE_NT_HEADERS pNt, DWORD Value) {
+	if (Value / pNt->OptionalHeader.SectionAlignment * pNt->OptionalHeader.SectionAlignment == Value) {
+		return Value;
+	}
+	return ((Value / pNt->OptionalHeader.SectionAlignment) + 1) * pNt->OptionalHeader.SectionAlignment;
 }
 
+DWORD AlignFile(PIMAGE_NT_HEADERS pNt, DWORD Value) {
+	if (Value / pNt->OptionalHeader.FileAlignment * pNt->OptionalHeader.FileAlignment == Value) {
+		return Value;
+	}
+	return ((Value / pNt->OptionalHeader.FileAlignment) + 1) * pNt->OptionalHeader.FileAlignment;
+}
 
 DWORD GetSectionSize(LPCSTR lpSectionName, PIMAGE_NT_HEADERS pNt){
 	PIMAGE_SECTION_HEADER pFirstSection = IMAGE_FIRST_SECTION(pNt);

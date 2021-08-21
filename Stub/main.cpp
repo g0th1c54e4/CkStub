@@ -10,9 +10,5 @@ typedef int(WINAPI* MessageBoxA_)(HWND,LPCSTR,LPCSTR,UINT);
 VOID Start() {
 	MessageBoxA_ messageBoxA = (MessageBoxA_)0x764EED60;
 	messageBoxA(NULL, "This is Stub", "Hello", MB_OK);
-	DWORD OriginEntryPoint = g_stub.OriginEntryPoint;
-	__asm {
-		jmp OriginEntryPoint
-	}
 	return;
 }
