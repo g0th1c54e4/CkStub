@@ -7,6 +7,7 @@ LPVOID GetSectionDataRVA(LPCSTR lpSectionName, PIMAGE_NT_HEADERS pNt);
 PIMAGE_SECTION_HEADER GetSectionData(LPCSTR lpSectionName, PIMAGE_NT_HEADERS pNt);
 DWORD Align(DWORD _SectionAlignment, DWORD Value);
 DWORD RVAToFOA(DWORD targetRVA,LPVOID lpBuffer);
+VOID RepairReloc(LPVOID lpBuffer);
 
 int main() {
 	CHAR lpFilePath[MAX_PATH] = {0};
@@ -132,7 +133,7 @@ LPVOID GetSectionDataRVA(LPCSTR lpSectionName, PIMAGE_NT_HEADERS pNt) {
 DWORD RVAToFOA(DWORD targetRVA, LPVOID lpBuffer) {
 	PIMAGE_DOS_HEADER pDos = (PIMAGE_DOS_HEADER)lpBuffer;
 	PIMAGE_NT_HEADERS pNt = (PIMAGE_NT_HEADERS)((DWORD)lpBuffer + pDos->e_lfanew);
-	if (targetRVA < pNt->OptionalHeader.SectionAlignment) {
+	if (targetRVA <= pNt->OptionalHeader.SizeOfHeaders) {
 		return targetRVA;
 	}
 	PIMAGE_SECTION_HEADER pFirstSec = IMAGE_FIRST_SECTION(pNt);
@@ -144,7 +145,6 @@ DWORD RVAToFOA(DWORD targetRVA, LPVOID lpBuffer) {
 	return 0;
 }
 
-
 PIMAGE_SECTION_HEADER GetSectionData(LPCSTR lpSectionName, PIMAGE_NT_HEADERS pNt){
 	PIMAGE_SECTION_HEADER pFirstSection = IMAGE_FIRST_SECTION(pNt);
 	for (int i = 0; i < pNt->FileHeader.NumberOfSections; i++) {
@@ -153,4 +153,10 @@ PIMAGE_SECTION_HEADER GetSectionData(LPCSTR lpSectionName, PIMAGE_NT_HEADERS pNt
 		}
 	}
 	return 0;
+}
+
+VOID RepairReloc(LPVOID lpBuffer) {
+	PIMAGE_DOS_HEADER pDos = (PIMAGE_DOS_HEADER)lpBuffer;
+	PIMAGE_NT_HEADERS pNt = (PIMAGE_NT_HEADERS)((DWORD)lpBuffer + pDos->e_lfanew);
+	PIMAGE_DATA_DIRECTORY 
 }
