@@ -8,6 +8,7 @@ PIMAGE_SECTION_HEADER GetSectionData(LPCSTR lpSectionName, PIMAGE_NT_HEADERS pNt
 DWORD AlignSection(PIMAGE_NT_HEADERS pNt, DWORD Value);
 DWORD AlignFile(PIMAGE_NT_HEADERS pNt, DWORD Value);
 DWORD RVAToFOA(DWORD targetRVA,LPVOID lpBuffer);
+DWORD GetProcAddressRVA(LPVOID lpBuffer, LPCSTR lpFunctionName);
 
 int main() {
 	CHAR lpFilePath[MAX_PATH] = {0};
@@ -168,6 +169,24 @@ PIMAGE_SECTION_HEADER GetSectionData(LPCSTR lpSectionName, PIMAGE_NT_HEADERS pNt
 	for (int i = 0; i < pNt->FileHeader.NumberOfSections; i++) {
 		if (strcmp((LPCSTR)pFirstSection[i].Name, lpSectionName) == 0) {
 			return &pFirstSection[i];
+		}
+	}
+	return 0;
+}
+
+DWORD GetProcAddressRVA(LPVOID lpBuffer, LPCSTR lpFunctionName) {
+	PIMAGE_DOS_HEADER pDos = (PIMAGE_DOS_HEADER)lpBuffer;
+	PIMAGE_NT_HEADERS pNt = (PIMAGE_NT_HEADERS)((DWORD)lpBuffer + pDos->e_lfanew);
+	PIMAGE_EXPORT_DIRECTORY pExport = (PIMAGE_EXPORT_DIRECTORY)((DWORD)lpBuffer + RVAToFOA((DWORD)&pNt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress, lpBuffer));
+	DWORD dwNum = pExport->NumberOfFunctions;
+	PDWORD pdwName = (PDWORD)(RVAToFOA(pExport->AddressOfNames, lpBuffer) + (DWORD)lpBuffer);
+	PWORD pwOrder = (PWORD)(RVAToFOA(pExport->AddressOfNameOrdinals, lpBuffer) + (DWORD)lpBuffer);
+	PDWORD pdwFuncAddr = (PDWORD)(RVAToFOA(pExport->AddressOfFunctions, lpBuffer) + (DWORD)lpBuffer);
+	for (int i = 0; i < dwNum; i++){
+		LPCSTR lpFuncName = (LPCSTR)(RVAToFOA(pdwName[i], lpBuffer) + (DWORD)lpBuffer);
+		if (strcmp(lpFuncName, lpFunctionName) == 0) {
+			WORD wOrd = pwOrder[i];
+			return pdwFuncAddr[wOrd];
 		}
 	}
 	return 0;
