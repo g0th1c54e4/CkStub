@@ -7,7 +7,6 @@ LPVOID GetSectionDataRVA(LPCSTR lpSectionName, PIMAGE_NT_HEADERS pNt);
 PIMAGE_SECTION_HEADER GetSectionData(LPCSTR lpSectionName, PIMAGE_NT_HEADERS pNt);
 DWORD Align(DWORD _SectionAlignment, DWORD Value);
 DWORD RVAToFOA(DWORD targetRVA,LPVOID lpBuffer);
-VOID RepairReloc(LPVOID lpBuffer);
 
 int main() {
 	CHAR lpFilePath[MAX_PATH] = {0};
@@ -56,6 +55,14 @@ int main() {
 		CloseHandle(hFile);
 		return 0;
 	}
+	if ((pNt->FileHeader.Characteristics & IMAGE_FILE_DLL) != 0) {
+		cout << "[-]暂不支持动态链接库加壳处理." << endl;
+		delete[] lpStubBuffer;
+		delete[] lpBuffer;
+		CloseHandle(hFileStub);
+		CloseHandle(hFile);
+		return 0;
+	}
 	if (pNt->OptionalHeader.SizeOfHeaders - (pDos->e_lfanew + sizeof(pNt) + (pNt->FileHeader.NumberOfSections) * sizeof(IMAGE_SECTION_HEADER)) < sizeof(IMAGE_SECTION_HEADER) * 2) {
 		//判断是否有足够大小写入新节表
 		delete[] lpStubBuffer;
@@ -68,7 +75,6 @@ int main() {
 	memset(&pSection[pNt->FileHeader.NumberOfSections + 1], 0, sizeof(IMAGE_SECTION_HEADER));
 	PIMAGE_SECTION_HEADER pNewSec = &pSection[pNt->FileHeader.NumberOfSections];
 	PIMAGE_SECTION_HEADER pLastSec = &pSection[pNt->FileHeader.NumberOfSections - 1];
-
 
 	IMAGE_SECTION_HEADER newSec = { 0 };
 	CONST BYTE pSecName[8] = ".Ck";//新节名
@@ -154,10 +160,4 @@ PIMAGE_SECTION_HEADER GetSectionData(LPCSTR lpSectionName, PIMAGE_NT_HEADERS pNt
 		}
 	}
 	return 0;
-}
-
-VOID RepairReloc(LPVOID lpBuffer) {
-	PIMAGE_DOS_HEADER pDos = (PIMAGE_DOS_HEADER)lpBuffer;
-	PIMAGE_NT_HEADERS pNt = (PIMAGE_NT_HEADERS)((DWORD)lpBuffer + pDos->e_lfanew);
-	PIMAGE_DATA_DIRECTORY a;
 }
