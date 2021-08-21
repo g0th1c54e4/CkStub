@@ -139,7 +139,8 @@ DWORD RVAToFOA(DWORD targetRVA, LPVOID lpBuffer) {
 	PIMAGE_SECTION_HEADER pFirstSec = IMAGE_FIRST_SECTION(pNt);
 	for (int i = 0; i < pNt->FileHeader.NumberOfSections; i++){
 		if (targetRVA >= pFirstSec[i].VirtualAddress && targetRVA <= pFirstSec[i].VirtualAddress + pFirstSec[i].SizeOfRawData) {
-			return (targetRVA - pFirstSec[i].VirtualAddress) + pFirstSec[i].PointerToRawData;
+			DWORD ret = (targetRVA - pFirstSec[i].VirtualAddress) + pFirstSec[i].PointerToRawData;
+			return ret;
 		}
 	}
 	return 0;
@@ -158,5 +159,5 @@ PIMAGE_SECTION_HEADER GetSectionData(LPCSTR lpSectionName, PIMAGE_NT_HEADERS pNt
 VOID RepairReloc(LPVOID lpBuffer) {
 	PIMAGE_DOS_HEADER pDos = (PIMAGE_DOS_HEADER)lpBuffer;
 	PIMAGE_NT_HEADERS pNt = (PIMAGE_NT_HEADERS)((DWORD)lpBuffer + pDos->e_lfanew);
-	PIMAGE_DATA_DIRECTORY 
+	PIMAGE_DATA_DIRECTORY a;
 }
