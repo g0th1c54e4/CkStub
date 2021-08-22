@@ -65,7 +65,6 @@ DWORD GetFuncAddress(LPVOID lpBuffer, LPCSTR lpFunctionName) {
 	return 0;
 }
 
-
 BOOL StringCmp(LPCSTR lpStr1, LPCSTR lpStr2) {
 	for (DWORD dwCount = 0; lpStr1[dwCount] != 0 && lpStr2[dwCount] != 0; dwCount++) {
 		if (lpStr1[dwCount] != lpStr2[dwCount]) {
