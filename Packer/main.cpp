@@ -2,13 +2,16 @@
 #include <Windows.h>
 #include "..\Public\Public.h"
 using namespace std;
+#define EncryptKey 0x55
+
 DWORD GetSectionSize(LPCSTR lpSectionName,PIMAGE_NT_HEADERS pNt);
 LPVOID GetSectionDataRVA(LPCSTR lpSectionName, PIMAGE_NT_HEADERS pNt);
 PIMAGE_SECTION_HEADER GetSectionData(LPCSTR lpSectionName, PIMAGE_NT_HEADERS pNt);
 DWORD AlignSection(PIMAGE_NT_HEADERS pNt, DWORD Value);
 DWORD AlignFile(PIMAGE_NT_HEADERS pNt, DWORD Value);
 DWORD RVAToFOA(DWORD targetRVA,LPVOID lpBuffer);
-DWORD GetProcAddressRVA(LPVOID lpBuffer, LPCSTR lpFunctionName);
+DWORD GetFuncAddress(LPVOID lpBuffer, LPCSTR lpFunctionName);
+VOID XOR(BYTE bKey,DWORD dwBeginAddress,DWORD dwSize);
 VOID RepairReloc(LPVOID lpBuffer, DWORD dwOldCodeBase, DWORD dwNewImageBase, DWORD dwNewCodeBase);
 
 int main() {
@@ -83,7 +86,7 @@ int main() {
 	IMAGE_SECTION_HEADER newSec = { 0 };
 	CONST BYTE pSecName[8] = ".Ck";//新节名
 	RtlCopyMemory(&newSec.Name, pSecName, sizeof(pSecName));
-	newSec.Characteristics = 0x60000020;//新节属性
+	newSec.Characteristics = 0xE0000020;//新节属性
 	
 	newSec.VirtualAddress = pLastSec->VirtualAddress + pLastSec->Misc.VirtualSize;
 	newSec.Misc.VirtualSize = AlignSection(pNt, NewSectionSize);
@@ -95,11 +98,18 @@ int main() {
 	pNt->OptionalHeader.SizeOfImage += newSec.SizeOfRawData;
 	pNt->OptionalHeader.SizeOfHeaders += sizeof(IMAGE_SECTION_HEADER);
 
-	RepairReloc(lpStubBuffer, GetSectionData(".text", pNtStub)->VirtualAddress, pNt->OptionalHeader.ImageBase, GetSectionData((LPCSTR)pSecName, pNt)->VirtualAddress);
+	STUB stub = { 0 };
+	stub.OriginEntryPoint = pNt->OptionalHeader.ImageBase + pNt->OptionalHeader.AddressOfEntryPoint;
+	stub.Key = EncryptKey; //解密密钥
+	stub.CodeBeginAddress = pNt->OptionalHeader.ImageBase + GetSectionData(".text", pNt)->VirtualAddress;
+	stub.SizeOfCode = GetSectionData(".text", pNt)->SizeOfRawData;
+	RtlCopyMemory((LPVOID)GetFuncAddress(lpStubBuffer, "g_stub"), &stub, sizeof(STUB));
 
+	RepairReloc(lpStubBuffer, GetSectionData(".text", pNtStub)->VirtualAddress, pNt->OptionalHeader.ImageBase, GetSectionData((LPCSTR)pSecName, pNt)->VirtualAddress);
 	RtlCopyMemory((LPVOID)((DWORD)lpBuffer + dwFileSize), (LPVOID)((DWORD)lpStubBuffer + RVAToFOA((DWORD)GetSectionDataRVA(".text", pNtStub), lpStubBuffer)), NewSectionSize);
-	
 	pNt->OptionalHeader.AddressOfEntryPoint = GetSectionData((LPCSTR)pSecName, pNt)->VirtualAddress + (pNtStub->OptionalHeader.AddressOfEntryPoint - GetSectionData(".text", pNtStub)->VirtualAddress);
+
+	//XOR(stub.Key, (DWORD)lpBuffer + GetSectionData(".text", pNt)->PointerToRawData, stub.SizeOfCode);
 
 	SetFilePointer(hFile, NULL, NULL, FILE_BEGIN);
 	if (WriteFile(hFile, lpBuffer, dwFileSize + NewSectionSize, &dwNumOfRead, NULL) == FALSE) {
@@ -177,7 +187,7 @@ PIMAGE_SECTION_HEADER GetSectionData(LPCSTR lpSectionName, PIMAGE_NT_HEADERS pNt
 	return 0;
 }
 
-DWORD GetProcAddressRVA(LPVOID lpBuffer, LPCSTR lpFunctionName) {
+DWORD GetFuncAddress(LPVOID lpBuffer, LPCSTR lpFunctionName) {
 	PIMAGE_DOS_HEADER pDos = (PIMAGE_DOS_HEADER)lpBuffer;
 	PIMAGE_NT_HEADERS pNt = (PIMAGE_NT_HEADERS)((DWORD)lpBuffer + pDos->e_lfanew);
 	PIMAGE_EXPORT_DIRECTORY pExport = (PIMAGE_EXPORT_DIRECTORY)((DWORD)lpBuffer + RVAToFOA(pNt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress, lpBuffer));
@@ -189,7 +199,7 @@ DWORD GetProcAddressRVA(LPVOID lpBuffer, LPCSTR lpFunctionName) {
 		LPCSTR lpFuncName = (LPCSTR)(RVAToFOA(pdwName[i], lpBuffer) + (DWORD)lpBuffer);
 		if (strcmp(lpFuncName, lpFunctionName) == 0) {
 			WORD wOrd = pwOrder[i];
-			return pdwFuncAddr[wOrd];
+			return (DWORD)lpBuffer + RVAToFOA(pdwFuncAddr[wOrd], lpBuffer);
 		}
 	}
 	return 0;
@@ -221,5 +231,11 @@ VOID RepairReloc(LPVOID lpBuffer, DWORD dwOldCodeBase,DWORD dwNewImageBase, DWOR
 			*pdwRepairAddr += dwNewCodeBase;
 		}
 		pReloc = (PIMAGE_BASE_RELOCATION)((DWORD)pReloc + pReloc->SizeOfBlock);
+	}
+}
+
+VOID XOR(BYTE bKey, DWORD dwBeginAddress, DWORD dwSize) {
+	for (UINT i = 0; i <= dwSize; i++){
+		*(BYTE*)(dwBeginAddress + i) ^= bKey;
 	}
 }

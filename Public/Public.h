@@ -5,6 +5,8 @@
 typedef struct _STUB {
 	DWORD OriginEntryPoint;
 	BYTE Key;
+	DWORD CodeBeginAddress;
+	DWORD SizeOfCode;
 
 }STUB;
 

@@ -4,25 +4,34 @@
 #pragma comment(linker, "/merge:.data=.text")
 #pragma comment(linker, "/merge:.rdata=.text")
 #pragma comment(linker, "/section:.text,RWE")
+
+VOID XOR(BYTE bKey, DWORD dwBeginAddress, DWORD dwSize);
+
 DWORD GetKernelBase();
 DWORD GetFuncAddress(LPVOID lpBuffer, LPCSTR lpFunctionName);
 BOOL StringCmp(LPCSTR lpStr1, LPCSTR lpStr2);
-STUB g_stub = { 0 };
-
 
 typedef LPVOID(WINAPI* GETPROCADDRESS)(HANDLE, LPCSTR);
 typedef HANDLE(WINAPI* LOADLIBRARYA)(LPCSTR);
 typedef int(WINAPI* MESSAGEBOXA)(HWND, LPCSTR, LPCSTR, UINT);
+typedef BOOL(WINAPI* VIRTUALPROTECT) (LPVOID lpAddress, SIZE_T dwSize, DWORD flNewProtect, PDWORD lpflOldProtect);
 
+
+STUB g_stub = { 0 };
+GETPROCADDRESS GetProcAddress_;
+LOADLIBRARYA LoadLibraryA_;
+MESSAGEBOXA MessageBoxA_;
+
+_declspec(naked)
 VOID Start() {
-	GETPROCADDRESS GetProcAddress_ = (GETPROCADDRESS)GetFuncAddress((LPVOID)GetKernelBase(), "GetProcAddress");
-	LOADLIBRARYA LoadLibraryA_ = (LOADLIBRARYA)GetProcAddress_((HANDLE)GetKernelBase(), "LoadLibraryA");
-	MESSAGEBOXA MessageBoxA_ = (MESSAGEBOXA)GetProcAddress_((HANDLE)LoadLibraryA_("user32.dll"), "MessageBoxA");
+	GetProcAddress_ = (GETPROCADDRESS)GetFuncAddress((LPVOID)GetKernelBase(), "GetProcAddress");
+	LoadLibraryA_ = (LOADLIBRARYA)GetProcAddress_((HANDLE)GetKernelBase(), "LoadLibraryA");
+	MessageBoxA_ = (MESSAGEBOXA)GetProcAddress_((HANDLE)LoadLibraryA_("user32.dll"), "MessageBoxA");
 	MessageBoxA_(NULL, "Hello World", "Shell", MB_OK);
+	//XOR(g_stub.Key, g_stub.CodeBeginAddress, g_stub.SizeOfCode);
 	_asm {
 		jmp g_stub.OriginEntryPoint
 	}
-	return;
 }
 
 DWORD GetKernelBase() {
@@ -64,4 +73,14 @@ BOOL StringCmp(LPCSTR lpStr1, LPCSTR lpStr2) {
 		}
 	}
 	return TRUE;
+}
+
+VOID XOR(BYTE bKey, DWORD dwBeginAddress, DWORD dwSize) {
+	VIRTUALPROTECT VirtualProtect_ = (VIRTUALPROTECT)GetProcAddress_((HANDLE)GetKernelBase(), "VirtualProtect");
+	DWORD dwOldProtectValue = 0;
+	VirtualProtect_((LPVOID)dwBeginAddress, dwSize, PAGE_EXECUTE_READWRITE, &dwOldProtectValue);
+	for (UINT i = 0; i <= dwSize; i++) {
+		*(BYTE*)(dwBeginAddress + i) ^= bKey;
+	}
+	VirtualProtect_((LPVOID)dwBeginAddress, dwSize, dwOldProtectValue, &dwOldProtectValue);
 }
