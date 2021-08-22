@@ -9,12 +9,14 @@ DWORD AlignSection(PIMAGE_NT_HEADERS pNt, DWORD Value);
 DWORD AlignFile(PIMAGE_NT_HEADERS pNt, DWORD Value);
 DWORD RVAToFOA(DWORD targetRVA,LPVOID lpBuffer);
 DWORD GetProcAddressRVA(LPVOID lpBuffer, LPCSTR lpFunctionName);
+VOID RepairReloc(LPVOID lpBuffer, DWORD dwOldCodeBase, DWORD dwNewImageBase, DWORD dwNewCodeBase);
 
 int main() {
-	CHAR lpFilePath[MAX_PATH] = {0};
+	/*CHAR lpFilePath[MAX_PATH] = {0};
 	cout << "[*]键入需要加壳的程序路径:";
 	cin >> lpFilePath;
-	HANDLE hFile = CreateFileA(lpFilePath, GENERIC_READ | GENERIC_WRITE, NULL, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+	HANDLE hFile = CreateFileA(lpFilePath, GENERIC_READ | GENERIC_WRITE, NULL, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);*/
+	HANDLE hFile = CreateFile(TEXT("D:\\baidu\\Plants.exe"), GENERIC_READ | GENERIC_WRITE, NULL, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 	if (hFile == INVALID_HANDLE_VALUE) {
 		return 0;
 	}
@@ -33,6 +35,7 @@ int main() {
 		CloseHandle(hFile);
 		return 0;
 	}
+	cout << hex << RVAToFOA(GetProcAddressRVA(lpStubBuffer,"g_stub"), lpStubBuffer) << endl;
 	PIMAGE_DOS_HEADER pDosStub = (PIMAGE_DOS_HEADER)lpStubBuffer;
 	PIMAGE_NT_HEADERS pNtStub = (PIMAGE_NT_HEADERS)((DWORD)lpStubBuffer + pDosStub->e_lfanew);
 
@@ -93,6 +96,8 @@ int main() {
 	pNt->FileHeader.NumberOfSections++;
 	pNt->OptionalHeader.SizeOfImage += newSec.SizeOfRawData;
 	pNt->OptionalHeader.SizeOfHeaders += sizeof(IMAGE_SECTION_HEADER);
+
+	RepairReloc(lpStubBuffer, GetSectionData(".text", pNtStub)->VirtualAddress, pNt->OptionalHeader.ImageBase, GetSectionData((LPCSTR)pSecName, pNt)->VirtualAddress);
 
 	RtlCopyMemory((LPVOID)((DWORD)lpBuffer + dwFileSize), (LPVOID)((DWORD)lpStubBuffer + RVAToFOA((DWORD)GetSectionDataRVA(".text", pNtStub), lpStubBuffer)), NewSectionSize);
 	
@@ -177,12 +182,12 @@ PIMAGE_SECTION_HEADER GetSectionData(LPCSTR lpSectionName, PIMAGE_NT_HEADERS pNt
 DWORD GetProcAddressRVA(LPVOID lpBuffer, LPCSTR lpFunctionName) {
 	PIMAGE_DOS_HEADER pDos = (PIMAGE_DOS_HEADER)lpBuffer;
 	PIMAGE_NT_HEADERS pNt = (PIMAGE_NT_HEADERS)((DWORD)lpBuffer + pDos->e_lfanew);
-	PIMAGE_EXPORT_DIRECTORY pExport = (PIMAGE_EXPORT_DIRECTORY)((DWORD)lpBuffer + RVAToFOA((DWORD)&pNt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress, lpBuffer));
+	PIMAGE_EXPORT_DIRECTORY pExport = (PIMAGE_EXPORT_DIRECTORY)((DWORD)lpBuffer + RVAToFOA(pNt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress, lpBuffer));
 	DWORD dwNum = pExport->NumberOfFunctions;
 	PDWORD pdwName = (PDWORD)(RVAToFOA(pExport->AddressOfNames, lpBuffer) + (DWORD)lpBuffer);
 	PWORD pwOrder = (PWORD)(RVAToFOA(pExport->AddressOfNameOrdinals, lpBuffer) + (DWORD)lpBuffer);
 	PDWORD pdwFuncAddr = (PDWORD)(RVAToFOA(pExport->AddressOfFunctions, lpBuffer) + (DWORD)lpBuffer);
-	for (int i = 0; i < dwNum; i++){
+	for (UINT i = 0; i < dwNum; i++){
 		LPCSTR lpFuncName = (LPCSTR)(RVAToFOA(pdwName[i], lpBuffer) + (DWORD)lpBuffer);
 		if (strcmp(lpFuncName, lpFunctionName) == 0) {
 			WORD wOrd = pwOrder[i];
@@ -190,4 +195,33 @@ DWORD GetProcAddressRVA(LPVOID lpBuffer, LPCSTR lpFunctionName) {
 		}
 	}
 	return 0;
+}
+
+
+VOID RepairReloc(LPVOID lpBuffer, DWORD dwOldCodeBase,DWORD dwNewImageBase, DWORD dwNewCodeBase) {
+	PIMAGE_DOS_HEADER pDos = (PIMAGE_DOS_HEADER)lpBuffer;
+	PIMAGE_NT_HEADERS pNt = (PIMAGE_NT_HEADERS)((DWORD)lpBuffer + pDos->e_lfanew);
+	PIMAGE_BASE_RELOCATION pReloc = (PIMAGE_BASE_RELOCATION)((DWORD)lpBuffer + RVAToFOA(pNt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC].VirtualAddress, lpBuffer));
+	if (pReloc->SizeOfBlock == 0 && pReloc->VirtualAddress == 0) {
+		return;
+	}
+	while (pReloc->VirtualAddress != 0) {
+		struct TypeOffset{
+			WORD offset : 12;
+			WORD type : 4;
+		};
+		TypeOffset* pTypeOffs = (TypeOffset*)(pReloc + 1);
+		DWORD dwCount = (pReloc->SizeOfBlock - 8) / 2;
+		for (UINT i = 0; i < dwCount; i++){
+			if (pTypeOffs[i].type != 3) {
+				continue;
+			}
+			PDWORD pdwRepairAddr = (PDWORD)((DWORD)lpBuffer + RVAToFOA(pReloc->VirtualAddress + pTypeOffs[i].offset, lpBuffer));
+			*pdwRepairAddr -= pNt->OptionalHeader.ImageBase;
+			*pdwRepairAddr -= dwOldCodeBase;
+			*pdwRepairAddr += dwNewImageBase;
+			*pdwRepairAddr += dwNewCodeBase;
+		}
+		pReloc = (PIMAGE_BASE_RELOCATION)((DWORD)pReloc + pReloc->SizeOfBlock);
+	}
 }
