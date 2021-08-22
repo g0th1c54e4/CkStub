@@ -12,11 +12,10 @@ DWORD GetProcAddressRVA(LPVOID lpBuffer, LPCSTR lpFunctionName);
 VOID RepairReloc(LPVOID lpBuffer, DWORD dwOldCodeBase, DWORD dwNewImageBase, DWORD dwNewCodeBase);
 
 int main() {
-	/*CHAR lpFilePath[MAX_PATH] = {0};
+	CHAR lpFilePath[MAX_PATH] = {0};
 	cout << "[*]键入需要加壳的程序路径:";
 	cin >> lpFilePath;
-	HANDLE hFile = CreateFileA(lpFilePath, GENERIC_READ | GENERIC_WRITE, NULL, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);*/
-	HANDLE hFile = CreateFile(TEXT("D:\\baidu\\Plants.exe"), GENERIC_READ | GENERIC_WRITE, NULL, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
+	HANDLE hFile = CreateFileA(lpFilePath, GENERIC_READ | GENERIC_WRITE, NULL, NULL, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, NULL);
 	if (hFile == INVALID_HANDLE_VALUE) {
 		return 0;
 	}
@@ -35,7 +34,6 @@ int main() {
 		CloseHandle(hFile);
 		return 0;
 	}
-	cout << hex << RVAToFOA(GetProcAddressRVA(lpStubBuffer,"g_stub"), lpStubBuffer) << endl;
 	PIMAGE_DOS_HEADER pDosStub = (PIMAGE_DOS_HEADER)lpStubBuffer;
 	PIMAGE_NT_HEADERS pNtStub = (PIMAGE_NT_HEADERS)((DWORD)lpStubBuffer + pDosStub->e_lfanew);
 
