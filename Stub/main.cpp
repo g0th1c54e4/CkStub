@@ -19,9 +19,11 @@ VOID Start() {
 	LOADLIBRARYA LoadLibraryA_ = (LOADLIBRARYA)GetProcAddress_((HANDLE)GetKernelBase(), "LoadLibraryA");
 	MESSAGEBOXA MessageBoxA_ = (MESSAGEBOXA)GetProcAddress_((HANDLE)LoadLibraryA_("user32.dll"), "MessageBoxA");
 	MessageBoxA_(NULL, "Hello World", "Shell", MB_OK);
+	_asm {
+		jmp g_stub.OriginEntryPoint
+	}
 	return;
 }
-
 
 DWORD GetKernelBase() {
 	DWORD dwBase = 0;
