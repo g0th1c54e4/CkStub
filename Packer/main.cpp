@@ -29,7 +29,7 @@ int main() {
 		return 0;
 	}
 	DWORD dwStubFileSize = GetFileSize(hFileStub, NULL);
-	LPVOID lpStubBuffer = new BYTE[dwStubFileSize];
+	LPVOID lpStubBuffer = new BYTE[dwStubFileSize]();
 	DWORD dwNumOfRead = 0;
 	if (ReadFile(hFileStub, lpStubBuffer, dwStubFileSize, &dwNumOfRead, NULL) == FALSE) {
 		delete[] lpStubBuffer;
@@ -42,7 +42,7 @@ int main() {
 
 	DWORD NewSectionSize = GetSectionSize(".text", pNtStub);
 
-	LPVOID lpBuffer = new BYTE[dwFileSize + NewSectionSize];
+	LPVOID lpBuffer = new BYTE[dwFileSize + NewSectionSize]();
 	
 	if (ReadFile(hFile, lpBuffer, dwFileSize, &dwNumOfRead, NULL) == FALSE) {
 		delete[] lpStubBuffer;
